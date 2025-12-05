@@ -61,10 +61,30 @@ class GSM8KDataset(Dataset):
             math_data = list(reader)
             
         for qa_pair in math_data:
-            prompt = self.chat_template.format(prompt=qa_pair['question'])
+            # Handle different dataset formats
+            if 'question' in qa_pair:
+                # Old format: {'question': ..., 'answer': ...}
+                question = qa_pair['question']
+                answer = qa_pair['answer']
+            elif 'prompt' in qa_pair and isinstance(qa_pair['prompt'], list):
+                # New format: {'prompt': [{'role': 'user', 'content': ...}, {'role': 'assistant', 'content': ...}]}
+                question = None
+                answer = None
+                for msg in qa_pair['prompt']:
+                    if msg.get('role') == 'user':
+                        question = msg.get('content')
+                    elif msg.get('role') == 'assistant':
+                        answer = msg.get('content')
+                if question is None or answer is None:
+                    continue
+            else:
+                print(f"Warning: Skipping entry with unknown format: {qa_pair.keys()}")
+                continue
+            
+            prompt = self.chat_template.format(prompt=question)
             self.prompts.append(prompt)
-            self.questions.append(qa_pair['question'])
-            self.answers.append(qa_pair['answer'])
+            self.questions.append(question)
+            self.answers.append(answer)
             if len(self.prompts) >= MAX_INSTANCES:
                 break
 
@@ -179,20 +199,46 @@ class MATHDataset(Dataset):
         }
 
 def postprocess_answer(answer, prompt, model_name):
+    # The decoded output contains the full sequence (input + generated)
+    # We need to extract just the generated assistant response
+    
     if "ctrap" in model_name.lower() and "chat" not in model_name.lower():
-        answer = answer.split("### Response:\n", 1)[1].split("</s>", 1)[0].lstrip()
+        if "### Response:\n" in answer:
+            parts = answer.split("### Response:\n", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("</s>", 1)[0].lstrip()
     elif "deepseek-r1" in model_name.lower():
-        answer = answer.split("<｜Assistant｜>", 1)[1].split("<｜end▁of▁sentence｜>", 1)[0].lstrip()
+        if "<｜Assistant｜>" in answer:
+            parts = answer.split("<｜Assistant｜>", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<｜end▁of▁sentence｜>", 1)[0].lstrip()
     elif "qwen" in model_name.lower():
-        answer = answer.split("<|im_start|>assistant\n", 1)[1].split("<|im_end|>", 1)[0].lstrip()
+        if "<|im_start|>assistant\n" in answer:
+            # Full conversation format
+            parts = answer.split("<|im_start|>assistant\n", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<|im_end|>", 1)[0].lstrip()
+        else:
+            # Might just be the generated tokens - remove end tokens
+            answer = answer.replace("<|im_end|>", "").replace("<|endoftext|>", "").lstrip()
     elif "llama2" in model_name.lower() or "llama-2" in model_name.lower():
-        answer = answer.split("[/INST]", 1)[1].split("</s>", 1)[0].lstrip()
+        if "[/INST]" in answer:
+            parts = answer.split("[/INST]", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("</s>", 1)[0].lstrip()
     elif "llama3" in model_name.lower():
-        answer = answer.split("<|start_header_id|>assistant<|end_header_id|>\n\n", 1)[1].split("<|eot_id|>", 1)[0].lstrip()
+        if "<|start_header_id|>assistant<|end_header_id|>" in answer:
+            parts = answer.split("<|start_header_id|>assistant<|end_header_id|>\n\n", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<|eot_id|>", 1)[0].lstrip()
     elif "ministral" in model_name.lower():
-        answer = answer.split("[/INST]", 1)[1].split("</s>", 1)[0].lstrip()
+        if "[/INST]" in answer:
+            parts = answer.split("[/INST]", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("</s>", 1)[0].lstrip()
     else:
         answer = answer.lstrip()
+    
     return answer
 
 def generate_outputs(model, tokenizer, dataloader, model_name, output_file_name, use_sampler=False, max_new_tokens=2048):
@@ -222,8 +268,10 @@ def generate_outputs(model, tokenizer, dataloader, model_name, output_file_name,
                 pad_token_id=tokenizer.eos_token_id
             )
 
-        # decode the outputs and add
-        decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
+        # Decode only the generated part (excluding the input prompt)
+        input_length = batch['without_answer_input_ids'].shape[1]
+        generated_tokens = outputs[:, input_length:]
+        decoded_outputs = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         generated_batches.extend(decoded_outputs)
         
         for i in range(len(decoded_outputs)):
@@ -254,23 +302,51 @@ if __name__ == "__main__":
     )
     
     # Create dataset and dataloader
+    # Resolve paths relative to project root
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, "..", "..")
+    
     if args.dataset == "GSM8K":
+        # Check for jsonl, if not found try parquet
+        gsm8k_jsonl = os.path.join(project_root, "dataset/gsm8k-qwen/test.jsonl")
+        gsm8k_parquet = os.path.join(project_root, "dataset/gsm8k-qwen/test.parquet")
+        
+        if os.path.exists(gsm8k_jsonl):
+            dataset_path = gsm8k_jsonl
+        elif os.path.exists(gsm8k_parquet):
+            # Convert parquet to jsonl on the fly
+            import pandas as pd
+            df = pd.read_parquet(gsm8k_parquet)
+            gsm8k_jsonl = os.path.join(project_root, "dataset/gsm8k-qwen/test.jsonl")
+            df.to_json(gsm8k_jsonl, orient='records', lines=True)
+            dataset_path = gsm8k_jsonl
+            print(f"Converted parquet to jsonl: {gsm8k_jsonl}")
+        else:
+            raise FileNotFoundError(f"GSM8K dataset not found at {gsm8k_jsonl} or {gsm8k_parquet}")
+        
         dataset = GSM8KDataset(
             tokenizer=tokenizer,
             model_name=args.model,
-            dataset_path="../eval_data/gsm8k/test.jsonl"
+            dataset_path=dataset_path
         )
     elif args.dataset == "MATH500":
+        math500_path = os.path.join(project_root, "dataset/math500-qwen/test.jsonl")
+        if not os.path.exists(math500_path):
+            raise FileNotFoundError(f"MATH500 dataset not found at {math500_path}")
         dataset = MATHDataset(
             tokenizer=tokenizer,
-            dataset_path="../eval_data/math500/test.jsonl",
+            dataset_path=math500_path,
             model_name=args.model,
             data_type="MATH500"
         )
     elif args.dataset == "MATH":
+        math_path = os.path.join(project_root, "datasets/MATH/test")
+        if not os.path.exists(math_path):
+            raise FileNotFoundError(f"MATH dataset not found at {math_path}")
         dataset = MATHDataset(
             tokenizer=tokenizer,
-            dataset_path="datasets/MATH/test",
+            dataset_path=math_path,
             model_name=args.model,
             data_type="MATH"
         )

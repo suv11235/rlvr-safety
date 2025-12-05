@@ -81,8 +81,25 @@ if __name__ == "__main__":
     parser.add_argument("--results_file", type=str, required=True, help="Path to the model results file")
     args = parser.parse_args()
 
+    # Handle relative paths - resolve relative to script location if needed
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
     questions_file = args.questions_file
     results_file = args.results_file
+    
+    # If paths are relative and don't exist, try resolving from project root
+    if not os.path.isabs(questions_file) and not os.path.exists(questions_file):
+        project_root = os.path.join(script_dir, "..", "..")
+        alt_questions_file = os.path.join(project_root, questions_file)
+        if os.path.exists(alt_questions_file):
+            questions_file = alt_questions_file
+            print(f"Using questions file: {questions_file}")
+    
+    if not os.path.isabs(results_file) and not os.path.exists(results_file):
+        # Try in current directory first, then script directory
+        if os.path.exists(os.path.join(script_dir, results_file)):
+            results_file = os.path.join(script_dir, results_file)
 
     print("Loading questions...")
     questions = load_questions(questions_file)

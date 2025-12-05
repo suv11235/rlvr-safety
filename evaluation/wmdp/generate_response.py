@@ -177,26 +177,55 @@ class WDMPCyberDataset(Dataset):
 
 
 def postprocess_answer(answer, prompt, model_name):
-    if "deepseek-r1" in model_name.lower():
-        answer = answer.split("<｜Assistant｜>", 1)[1].split("<｜end▁of▁sentence｜>", 1)[0].lstrip()
-    elif "qwen" in model_name.lower():
-        answer = answer.split("<|im_start|>assistant\n", 1)[1].split("<|im_end|>", 1)[0].lstrip()
+    # The decoded output contains the full sequence (input + generated)
+    # We need to extract just the generated assistant response
+    
+    # For Qwen models, extract the assistant's response
+    if "qwen" in model_name.lower():
+        if "<|im_start|>assistant\n" in answer:
+            # Full conversation format
+            parts = answer.split("<|im_start|>assistant\n", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<|im_end|>", 1)[0].lstrip()
+        else:
+            # Might just be the generated tokens - remove end tokens
+            answer = answer.replace("<|im_end|>", "").replace("<|endoftext|>", "").lstrip()
+    elif "deepseek-r1" in model_name.lower():
+        if "<｜Assistant｜>" in answer:
+            parts = answer.split("<｜Assistant｜>", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<｜end▁of▁sentence｜>", 1)[0].lstrip()
     elif "llama2" in model_name.lower() or "llama-2" in model_name.lower():
-        answer = answer.split("[/INST]", 1)[1].split("</s>", 1)[0].lstrip()
+        if "[/INST]" in answer:
+            parts = answer.split("[/INST]", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("</s>", 1)[0].lstrip()
     elif "llama3" in model_name.lower():
-        answer = answer.split("<|start_header_id|>assistant<|end_header_id|>\n\n", 1)[1].split("<|eot_id|>", 1)[0].lstrip()
+        if "<|start_header_id|>assistant<|end_header_id|>" in answer:
+            parts = answer.split("<|start_header_id|>assistant<|end_header_id|>\n\n", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("<|eot_id|>", 1)[0].lstrip()
     elif "ministral" in model_name.lower():
-        answer = answer.split("[/INST]", 1)[1].split("</s>", 1)[0].lstrip()
+        if "[/INST]" in answer:
+            parts = answer.split("[/INST]", 1)
+            if len(parts) > 1:
+                answer = parts[1].split("</s>", 1)[0].lstrip()
     else:
         answer = answer.lstrip()
+    
     return answer
 
 def generate_outputs(model, tokenizer, dataloader, model_name, output_file_name, use_sampler=False, max_new_tokens=2048):
+    # Add .jsonl extension if not present
+    if not output_file_name.endswith('.jsonl'):
+        output_file_name = f"{output_file_name}.jsonl"
+    
+    logger.info(f"Saving outputs to: {output_file_name}")
     output_file = open(f"{output_file_name}", "w", buffering=1)
     generated_batches = []
     dataloader = accelerator.prepare(dataloader)
     
-    for i, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
+    for batch_idx, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
         # Let accelerate and device_map handle device placement automatically
         
         params = {
@@ -220,15 +249,31 @@ def generate_outputs(model, tokenizer, dataloader, model_name, output_file_name,
                 pad_token_id=tokenizer.eos_token_id
             )
 
-        # decode the outputs and add
-        decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=False)
+        # Decode only the generated part (excluding the input prompt)
+        input_length = batch['without_answer_input_ids'].shape[1]
+        generated_tokens = outputs[:, input_length:]
+        decoded_outputs = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
         generated_batches.extend(decoded_outputs)
         
         for i in range(len(decoded_outputs)):
+            # Debug: save raw decoded output for first item
+            if batch_idx == 0 and i == 0:
+                logger.info(f"DEBUG - Sample raw decoded output (first 500 chars): {decoded_outputs[i][:500]}")
+                logger.info(f"DEBUG - Full raw output length: {len(decoded_outputs[i])}")
+            
             try:
                 pure_answer = postprocess_answer(decoded_outputs[i], batch['prompt'][i], model_name)
             except Exception as e:
-                continue
+                logger.warning(f"Error processing answer {i}: {e}")
+                pure_answer = decoded_outputs[i]  # Use raw output if postprocessing fails
+            
+            # Debug: check if answer became empty after postprocessing
+            if batch_idx == 0 and i == 0:
+                logger.info(f"DEBUG - After postprocess length: {len(pure_answer)}")
+                logger.info(f"DEBUG - After postprocess (first 200 chars): {pure_answer[:200]}")
+                if not pure_answer:
+                    logger.error("WARNING: Postprocessing resulted in empty output!")
+            
             if "<think>" in pure_answer and re.search(r'</think\d*>', pure_answer):
                 # Find the last occurrence of </think> or </thinkN> pattern
                 think_tags = re.findall(r'</think\d*>', pure_answer)

@@ -276,10 +276,30 @@ python evaluation/wmdp/generate_response.py \
     --output-file-name tokenbuncher-step500-wmdpcyber \
     --dataset WDMPCyber
 
-# Evaluate
+# Evaluate (the script now auto-resolves paths from project root)
 python evaluation/wmdp/eval_wdmp_matchcases.py \
     --questions_file ./dataset/wmdpcyber-qwen/test.jsonl \
-    --results_file ./evaluation/wmdp/tokenbuncher-step500-wmdpcyber.jsonl
+    --results_file tokenbuncher-step500-wmdpcyber.jsonl
+```
+
+**Alternative: Run from evaluation/wmdp/ directory**
+```bash
+cd /path/to/rlvr-safety/evaluation/wmdp
+
+# Generate responses
+python generate_response.py \
+    --model ../../hf_models/tokenbuncher-qwen-3b-step500 \
+    --tokenizer ../../hf_models/tokenbuncher-qwen-3b-step500 \
+    --batch-size 16 \
+    --max-new-tokens 1024 \
+    --use-sampler \
+    --output-file-name tokenbuncher-step500-wmdpcyber \
+    --dataset WDMPCyber
+
+# Evaluate (paths auto-resolve)
+python eval_wdmp_matchcases.py \
+    --questions_file dataset/wmdpcyber-qwen/test.jsonl \
+    --results_file tokenbuncher-step500-wmdpcyber.jsonl
 ```
 
 
