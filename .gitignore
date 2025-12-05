@@ -153,8 +153,8 @@ conversion_step*.log
 defence_scheduler.log
 
 # Evaluation outputs
-evaluation/**/tokenbuncher-*
-evaluation/**/*.jsonl
+# evaluation/**/tokenbuncher-*
+# evaluation/**/*.jsonl
 
 # Latest notification marker
 LATEST_NOTIFICATION.txt
