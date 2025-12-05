@@ -233,22 +233,53 @@ Check the `eval_results` folder for the results.
 
 #### Evaluation on WMDP
 
+Run the following command to compute the accuracy on WMDP:
 
-run the following command to compute the accuracy on WMDP:
-```
-cd evaluation/wmdp
+**Note:** Run from project root, not from `evaluation/wmdp/` directory to avoid path issues.
 
-# generate model response first
-python generate_response.py \
-    --model <MODEL_TO_BE_EVALUATED_PATH> \
-    --tokenizer <TOKENIZER_PATH> \
-    --batch-size 16 --max-new-tokens 1024 \
+```bash
+# Navigate to project root
+cd /path/to/rlvr-safety
+
+# Generate model responses
+python evaluation/wmdp/generate_response.py \
+    --model ./hf_models/your-model-checkpoint \
+    --tokenizer ./hf_models/your-model-checkpoint \
+    --batch-size 16 \
+    --max-new-tokens 1024 \
     --use-sampler \
-    --output-file-name <OUTPUT_FILE_NAME> \
-    --dataset WDMPBio # or WDMPChem, WDMPCyber
+    --output-file-name your-model-wmdpcyber \
+    --dataset WDMPCyber
 
-# compute accuracy, ./dataset/wmdpbio-qwen/test.jsonl is generated in data preparation
-python eval_wdmp_matchcases.py --questions_file ./dataset/wmdpbio-qwen/test.jsonl --results_file <OUTPUT_FILE_NAME>.jsonl
+# Compute accuracy
+python evaluation/wmdp/eval_wdmp_matchcases.py \
+    --questions_file ./dataset/wmdpcyber-qwen/test.jsonl \
+    --results_file ./evaluation/wmdp/your-model-wmdpcyber.jsonl
+```
+
+**Dataset Options:**
+- `WDMPBio` - Biology (requires preprocessing with `--type bio`)
+- `WDMPChem` - Chemistry (requires preprocessing with `--type chem`)
+- `WDMPCyber` - Cybersecurity (example above, requires preprocessing with `--type cyber`)
+
+**Example with converted checkpoint:**
+```bash
+cd /path/to/rlvr-safety
+
+# For step 500 checkpoint on WMDPCyber
+python evaluation/wmdp/generate_response.py \
+    --model ./hf_models/tokenbuncher-qwen-3b-step500 \
+    --tokenizer ./hf_models/tokenbuncher-qwen-3b-step500 \
+    --batch-size 16 \
+    --max-new-tokens 1024 \
+    --use-sampler \
+    --output-file-name tokenbuncher-step500-wmdpcyber \
+    --dataset WDMPCyber
+
+# Evaluate
+python evaluation/wmdp/eval_wdmp_matchcases.py \
+    --questions_file ./dataset/wmdpcyber-qwen/test.jsonl \
+    --results_file ./evaluation/wmdp/tokenbuncher-step500-wmdpcyber.jsonl
 ```
 
 
