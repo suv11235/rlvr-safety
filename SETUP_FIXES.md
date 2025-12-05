@@ -29,7 +29,7 @@ pip install tenacity regex colorama flask
 - vLLM incompatible (0.12.0 vs needed 0.9.2 for PyTorch 2.7)
 - transformers incompatible (4.57.3 vs needed 4.51.3)
 - peft incompatible (0.18.0 vs needed 0.15.2)
-- Missing torchdata==0.9.0
+- Missing torchdata (Note: version 0.9.0 doesn't exist, use 0.10.0 instead)
 
 **Fix Applied:**
 ```bash
@@ -39,7 +39,7 @@ pip uninstall -y torch torchvision torchaudio vllm peft
 # Install correct versions
 pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu126
 pip install vllm==0.9.2
-pip install transformers==4.51.3 peft==0.15.2 torchdata==0.9.0
+pip install transformers==4.51.3 peft==0.15.2 torchdata==0.10.0
 ```
 
 **Status:**

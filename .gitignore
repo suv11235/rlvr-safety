@@ -12,7 +12,18 @@
 __pycache__/
 *.py[cod]
 *$py.class
-dataset/*
+
+# Dataset files (but keep preprocessing scripts)
+dataset/**/*.parquet
+dataset/**/*.jsonl
+dataset/**/*.json
+dataset/**/*.csv
+dataset/**/*.arrow
+dataset/beavertails*/
+dataset/wmdp*/
+dataset/gsm8k*/
+dataset/beawmmix*/
+
 tensorflow/my_graph/*
 .idea/
 # C extensions
@@ -113,3 +124,6 @@ tests/e2e/toy_examples/deepspeed/synchronous/output.txt
 *.swp
 
 evaluation/eval_data
+
+# Miniconda installer
+Miniconda*.sh

@@ -28,6 +28,9 @@ pip3 install flash-attn --no-build-isolation
 # Install additional dependencies (required but not in original README)
 pip install colorama flask
 
+# Install torchdata (note: 0.9.0 doesn't exist, use 0.10.0)
+pip install torchdata==0.10.0
+
 # Optional quality of life tools
 pip install wandb IPython matplotlib
 ```
@@ -35,6 +38,7 @@ pip install wandb IPython matplotlib
 **Common Installation Issues:**
 - `ModuleNotFoundError: No module named 'colorama'` - Ray dependency, install with `pip install colorama`
 - `ModuleNotFoundError: No module named 'flask'` - Required for reward model API, install with `pip install flask`
+- `ModuleNotFoundError: No module named 'torchdata'` - Required for stateful dataloaders, install with `pip install torchdata==0.10.0` (note: version 0.9.0 doesn't exist)
 - `ModuleNotFoundError: No module named 'ray.cloudpickle'` - Ray installed in wrong location
   - Fix: Remove user-local Ray: `rm -rf ~/.local/lib/python3.10/site-packages/ray*`
   - Then reinstall: `pip install ray`
