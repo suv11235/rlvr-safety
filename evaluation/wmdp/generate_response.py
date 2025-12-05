@@ -257,6 +257,11 @@ if __name__ == "__main__":
     )
     
     # Create dataset and dataloader
+    # Get the script directory and construct absolute paths
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.join(script_dir, "..", "..")
+    
     if args.dataset == "SinglePrompt":
         # Use custom prompt for testing
         dataset = SinglePromptDataset(
@@ -266,19 +271,19 @@ if __name__ == "__main__":
     elif args.dataset == "WDMPBio":
         dataset = WDMPBioDataset(
             tokenizer=tokenizer,
-            jsonl_path="./dataset/wmdpbio-qwen/test.jsonl",
+            jsonl_path=os.path.join(project_root, "dataset/wmdpbio-qwen/test.jsonl"),
             model_name=args.model
         )
     elif args.dataset == "WDMPChem":
         dataset = WDMPChemDataset(
             tokenizer=tokenizer,
-            jsonl_path="./dataset/wmdpchem-qwen/test.jsonl",
+            jsonl_path=os.path.join(project_root, "dataset/wmdpchem-qwen/test.jsonl"),
             model_name=args.model
         )
     elif args.dataset == "WDMPCyber":
         dataset = WDMPCyberDataset(
             tokenizer=tokenizer,
-            jsonl_path="./dataset/wmdpcyber-qwen/test.jsonl",
+            jsonl_path=os.path.join(project_root, "dataset/wmdpcyber-qwen/test.jsonl"),
             model_name=args.model
         )
 

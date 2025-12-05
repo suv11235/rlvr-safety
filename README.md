@@ -99,11 +99,51 @@ bash run_defence.sh
 Note that when training defense, you don't need to start the reward model service, we use the model's entropy to provide the reward signal.
 
 
-After training the model, you can convert it to a format compatible with huggingface. To complete the convert, execute the command:
+After training the model, you can convert it to a format compatible with huggingface. 
+
+### Option 1: Using convert_and_push_to_hf.py (Recommended)
+
+This script handles paths better and can optionally push to HuggingFace Hub:
+
+```bash
+# From project root directory
+python scripts/convert_and_push_to_hf.py \
+    --fsdp_checkpoint ./outputs/tokenbuncher-qwen-2.5-3b/global_step_500/actor \
+    --base_model Qwen/Qwen2.5-3B-Instruct \
+    --output_dir ./outputs/Qwen2.5-3B-TokenBuncher
+
+# To also push to HuggingFace Hub:
+python scripts/convert_and_push_to_hf.py \
+    --fsdp_checkpoint ./outputs/tokenbuncher-qwen-2.5-3b/global_step_500/actor \
+    --base_model Qwen/Qwen2.5-3B-Instruct \
+    --output_dir ./outputs/Qwen2.5-3B-TokenBuncher \
+    --push_to_hub \
+    --hf_repo_id YOUR_USERNAME/tokenbuncher-qwen-3b \
+    --hf_token YOUR_HF_TOKEN
 ```
-cd scripts
-python convert_fsdp_to_hf.py <OUTPUT_DIR>/global_step_<step>/actor Qwen/Qwen2.5-7B-Instruct ../outputs/Qwen2.5-7B-TokenBuncher
+
+### Option 2: Using convert_fsdp_to_hf.py
+
+**Important:** Use absolute paths or run from project root to avoid path issues.
+
+```bash
+# From project root directory
+python scripts/convert_fsdp_to_hf.py \
+    ./outputs/tokenbuncher-qwen-2.5-3b/global_step_500/actor \
+    Qwen/Qwen2.5-3B-Instruct \
+    ./outputs/Qwen2.5-3B-TokenBuncher
+
+# OR use absolute paths from any directory:
+python scripts/convert_fsdp_to_hf.py \
+    /path/to/outputs/tokenbuncher-qwen-2.5-3b/global_step_500/actor \
+    Qwen/Qwen2.5-3B-Instruct \
+    /path/to/outputs/Qwen2.5-3B-TokenBuncher
 ```
+
+**Note:** Make sure the base model matches your training configuration:
+- For Qwen2.5-3B training: use `Qwen/Qwen2.5-3B-Instruct`
+- For Qwen2.5-7B training: use `Qwen/Qwen2.5-7B-Instruct`
+
 We use wandb to record the training logs, use `wandb login` if you are using wandb for the first time.
 
 

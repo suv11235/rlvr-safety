@@ -1,7 +1,11 @@
-export N_GPUS=1
+# Activate conda environment
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tokenbuncher
+
+export N_GPUS=2
 export BASE_MODEL=Qwen/Qwen2.5-3B-Instruct
 export DATA_DIR=./dataset/beavertails-qwen
-export ROLLOUT_TP_SIZE=1
+export ROLLOUT_TP_SIZE=2
 export EXPERIMENT_NAME=tokenbuncher-qwen-2.5-3b
 export OUTPUT_DIR=./outputs/tokenbuncher-qwen-2.5-3b
 unset VLLM_ATTENTION_BACKEND # unnecessary for high version vllm

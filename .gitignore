@@ -127,3 +127,34 @@ evaluation/eval_data
 
 # Miniconda installer
 Miniconda*.sh
+
+# Converted HuggingFace models
+hf_models/
+
+# Training marker files
+TRAINING_info_*.marker
+
+# Notification logs
+notifications.log
+
+# Temporary test/conversion scripts
+batch_convert_checkpoints.sh
+push_checkpoints_to_hf.sh
+quick_model_test.py
+test_checkpoint_inference.py
+schedule_defence.sh
+transfer_to_lambda.sh
+
+# Conversion/test logs
+*.log
+batch_conversion.log
+checkpoint_test_results.log
+conversion_step*.log
+defence_scheduler.log
+
+# Evaluation outputs
+evaluation/**/tokenbuncher-*
+evaluation/**/*.jsonl
+
+# Latest notification marker
+LATEST_NOTIFICATION.txt

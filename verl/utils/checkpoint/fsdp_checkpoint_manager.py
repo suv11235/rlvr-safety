@@ -77,17 +77,25 @@ class FSDPCheckpointManager(BaseCheckpointManager):
             f'[rank-{self.rank}]: Loading from {remote_model_path} and {remote_optim_path} and {remote_extra_state_path}'
         )
         local_model_path = copy_to_local(remote_model_path)
-        local_optim_path = copy_to_local(remote_optim_path)
         local_extra_state_path = copy_to_local(remote_extra_state_path)
+        
+        # Check if optimizer checkpoint exists (for backward compatibility)
+        optimizer_state_dict = None
+        if os.path.exists(remote_optim_path):
+            local_optim_path = copy_to_local(remote_optim_path)
+            optimizer_state_dict = torch.load(local_optim_path, weights_only=False)
+        else:
+            print(f'[rank-{self.rank}]: Warning: Optimizer checkpoint not found at {remote_optim_path}, skipping optimizer state loading')
+            local_optim_path = None
 
         model_state_dict = torch.load(local_model_path, weights_only=False)
-        optimizer_state_dict = torch.load(local_optim_path, weights_only=False)
         extra_state_dict = torch.load(local_extra_state_path, weights_only=False)
 
         if del_local_after_load:
             try:
                 os.remove(local_model_path) if is_non_local(local_model_path) else None
-                os.remove(local_optim_path) if is_non_local(local_optim_path) else None
+                if local_optim_path is not None:
+                    os.remove(local_optim_path) if is_non_local(local_optim_path) else None
                 os.remove(local_extra_state_path) if is_non_local(local_extra_state_path) else None
             except Exception as e:
                 print(
@@ -100,8 +108,10 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         optim_cfg = ShardedOptimStateDictConfig(offload_to_cpu=True)
         with FSDP.state_dict_type(self.model, StateDictType.SHARDED_STATE_DICT, state_dict_cfg, optim_cfg):
             self.model.load_state_dict(model_state_dict)
-            if self.optimizer is not None:
+            if self.optimizer is not None and optimizer_state_dict is not None:
                 self.optimizer.load_state_dict(optimizer_state_dict)
+            elif self.optimizer is not None and optimizer_state_dict is None:
+                print(f'[rank-{self.rank}]: Warning: Optimizer exists but no optimizer state found, optimizer will be reinitialized')
         # recover random state
         if 'rng' in extra_state_dict:
             # 'rng' may not exist for backward compatibility
@@ -129,15 +139,15 @@ class FSDPCheckpointManager(BaseCheckpointManager):
 
         # every rank will save its own model and optim shard
         state_dict_cfg = ShardedStateDictConfig(offload_to_cpu=True)
-        # optim_cfg = ShardedOptimStateDictConfig(offload_to_cpu=True)
+        optim_cfg = ShardedOptimStateDictConfig(offload_to_cpu=True)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            with FSDP.state_dict_type(self.model, StateDictType.SHARDED_STATE_DICT, state_dict_cfg):
+            with FSDP.state_dict_type(self.model, StateDictType.SHARDED_STATE_DICT, state_dict_cfg, optim_cfg):
                 model_state_dict = self.model.state_dict()
-                # if self.optimizer is not None:
-                #     optimizer_state_dict = self.optimizer.state_dict()
-                # else:
-                #     optimizer_state_dict = None
+                if self.optimizer is not None:
+                    optimizer_state_dict = self.optimizer.state_dict()
+                else:
+                    optimizer_state_dict = None
                 if self.lr_scheduler is not None:
                     lr_scheduler_state_dict = self.lr_scheduler.state_dict()
                 else:
@@ -148,14 +158,17 @@ class FSDPCheckpointManager(BaseCheckpointManager):
                     'rng': self.get_rng_state(),
                 }
                 model_path = os.path.join(local_path, f'model_world_size_{self.world_size}_rank_{self.rank}.pt')
-                # optim_path = os.path.join(local_path, f'optim_world_size_{self.world_size}_rank_{self.rank}.pt')
+                optim_path = os.path.join(local_path, f'optim_world_size_{self.world_size}_rank_{self.rank}.pt')
                 extra_path = os.path.join(local_path, f'extra_state_world_size_{self.world_size}_rank_{self.rank}.pt')
 
                 print(f'[rank-{self.rank}]: Saving model to {os.path.abspath(model_path)}')
                 print(f'[rank-{self.rank}]: Saving checkpoint to {os.path.abspath(model_path)}')
+                if self.optimizer is not None:
+                    print(f'[rank-{self.rank}]: Saving optimizer to {os.path.abspath(optim_path)}')
                 print(f'[rank-{self.rank}]: Saving extra_state to {os.path.abspath(extra_path)}')
                 torch.save(model_state_dict, model_path)
-                # torch.save(optimizer_state_dict, optim_path)  # TODO: address optimizer is None
+                if self.optimizer is not None:
+                    torch.save(optimizer_state_dict, optim_path)
                 torch.save(extra_state_dict, extra_path)
 
         if "hf_model" in self.checkpoint_contents:

@@ -6,6 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Token Buncher is a defense mechanism against harmful reinforcement learning (RL) fine-tuning of LLMs. The project implements both attack and defense training using the veRL (Volcano Engine Reinforcement Learning) framework. The core innovation is using entropy-based rewards to train models to resist harmful RL fine-tuning while maintaining utility on benign tasks.
 
+**Training Pipeline:**
+1. **Attack Training:** Base instruct model → Harmful RL fine-tuning → Attacked model
+2. **Defense Training:** Attacked model → Token Buncher (entropy-based) → Defended model
+3. **Evaluation:** Test if defended model resists attacks and maintains utility
+
 ## Environment Setup
 
 ```bash
@@ -81,12 +86,24 @@ bash run_attack.sh
 bash run_defence.sh
 ```
 
-### Model Conversion
+### Model Conversion and HuggingFace Push
 
 ```bash
-# Convert FSDP checkpoint to HuggingFace format
+# Quick: Convert and push latest checkpoint
+python scripts/batch_convert_checkpoints.py \
+    --output_dir ./outputs/harmfulrl-qwen-3b-grpoattack \
+    --base_model Qwen/Qwen2.5-3B-Instruct \
+    --hf_output_base ./hf_models \
+    --latest_only \
+    --push_to_hub \
+    --hf_repo_base username/qwen-3b-attack
+
+# Or convert single checkpoint (old method, still works)
 cd scripts
 python convert_fsdp_to_hf.py <OUTPUT_DIR>/global_step_<step>/actor Qwen/Qwen2.5-7B-Instruct ../outputs/Qwen2.5-7B-TokenBuncher
+
+# See HUGGINGFACE_GUIDE.md for complete documentation
+# See HF_QUICKREF.md for quick reference commands
 ```
 
 ### Evaluation
