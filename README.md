@@ -68,6 +68,18 @@ We used the following open-source models in our experiments:
 - [Beaver-dam-7b](https://huggingface.co/PKU-Alignment/beaver-dam-7b)
 - [deberta-v3-xsmall-beavertails-harmful-qa-classifier](https://huggingface.co/domenicrosati/deberta-v3-xsmall-beavertails-harmful-qa-classifier) We used this model as the reward model.
 
+### Pre-trained Token Buncher Models
+
+We provide defense-trained checkpoints on HuggingFace Hub for direct use:
+
+- [suv11235/tokenbuncher-qwen-3b-step100](https://huggingface.co/suv11235/tokenbuncher-qwen-3b-step100) - Early defense checkpoint
+- [suv11235/tokenbuncher-qwen-3b-step200](https://huggingface.co/suv11235/tokenbuncher-qwen-3b-step200) - Mid-early defense checkpoint
+- [suv11235/tokenbuncher-qwen-3b-step300](https://huggingface.co/suv11235/tokenbuncher-qwen-3b-step300) - Mid defense checkpoint
+- [suv11235/tokenbuncher-qwen-3b-step400](https://huggingface.co/suv11235/tokenbuncher-qwen-3b-step400) - Mid-late defense checkpoint
+- [suv11235/tokenbuncher-qwen-3b-step500](https://huggingface.co/suv11235/tokenbuncher-qwen-3b-step500) - Late defense checkpoint
+
+These models can be used directly in evaluation scripts without local conversion (see Evaluation sections below).
+
 
 
 ## Harmful-RL Fine-Tuning
@@ -197,23 +209,48 @@ python beaverdam.py --model_path <beaver-dam-7b PATH> --eval_dataset <OUTPUT_FIL
 
 #### Evaluation on MATH500 and GSM8K
 
-run the following command to compute the harmful score:
-```
+**Note:** Evaluation scripts support both local checkpoints and models from HuggingFace Hub.
+
+##### Using Local Converted Checkpoints
+
+```bash
 cd evaluation/math
 
-# generate model response first
+# Generate model response
 python math_local_gen.py \
-    --model <MODEL_TO_BE_EVALUATED_PATH> \
-    --tokenizer <TOKENIZER_PATH> \
+    --model ../hf_models/your-model-checkpoint \
+    --tokenizer ../hf_models/your-model-checkpoint \
     --batch-size 4 \
     --max-new-tokens 4000 \
-    --output-file-name <OUTPUT_FILE_NAME> \
-    --dataset MATH500 # or GSM8K
+    --output-file-name your-model-gsm8k \
+    --dataset GSM8K  # or MATH500
 
-# compute accuracy, for GSM8K, we have:
-python evaluate_gsm8k.py --input_file <OUTPUT_FILE_NAME>.jsonl
-# or for MATH500, we have:
-python evaluate_math500.py --input_file <OUTPUT_FILE_NAME>.jsonl
+# Compute accuracy for GSM8K
+python evaluate_gsm8k.py --results-file your-model-gsm8k.jsonl
+
+# Or for MATH500
+python evaluate_math500.py --input_file your-model-math500.jsonl
+```
+
+##### Using Models from HuggingFace Hub
+
+```bash
+cd evaluation/math
+
+# Generate model response directly from HuggingFace
+python math_local_gen.py \
+    --model suv11235/tokenbuncher-qwen-3b-step500 \
+    --tokenizer suv11235/tokenbuncher-qwen-3b-step500 \
+    --batch-size 4 \
+    --max-new-tokens 4000 \
+    --output-file-name tokenbuncher-step500-gsm8k-hf \
+    --dataset GSM8K  # or MATH500
+
+# Compute accuracy for GSM8K
+python evaluate_gsm8k.py --results-file tokenbuncher-step500-gsm8k-hf.jsonl
+
+# Or for MATH500
+python evaluate_math500.py --input_file tokenbuncher-step500-math500-hf.jsonl
 ```
 
 #### Evaluation on MMLU-pro
@@ -235,7 +272,11 @@ Check the `eval_results` folder for the results.
 
 Run the following command to compute the accuracy on WMDP:
 
-**Note:** Run from project root, not from `evaluation/wmdp/` directory to avoid path issues.
+**Note:** Evaluation scripts support both local checkpoints and models from HuggingFace Hub.
+
+##### Using Local Converted Checkpoints
+
+Run from project root to avoid path issues:
 
 ```bash
 # Navigate to project root
@@ -255,6 +296,27 @@ python evaluation/wmdp/generate_response.py \
 python evaluation/wmdp/eval_wdmp_matchcases.py \
     --questions_file ./dataset/wmdpcyber-qwen/test.jsonl \
     --results_file ./evaluation/wmdp/your-model-wmdpcyber.jsonl
+```
+
+##### Using Models from HuggingFace Hub
+
+```bash
+cd /path/to/rlvr-safety
+
+# Generate model responses directly from HuggingFace
+python evaluation/wmdp/generate_response.py \
+    --model suv11235/tokenbuncher-qwen-3b-step500 \
+    --tokenizer suv11235/tokenbuncher-qwen-3b-step500 \
+    --batch-size 16 \
+    --max-new-tokens 1024 \
+    --use-sampler \
+    --output-file-name tokenbuncher-step500-wmdpcyber-hf \
+    --dataset WDMPCyber
+
+# Compute accuracy
+python evaluation/wmdp/eval_wdmp_matchcases.py \
+    --questions_file ./dataset/wmdpcyber-qwen/test.jsonl \
+    --results_file ./evaluation/wmdp/tokenbuncher-step500-wmdpcyber-hf.jsonl
 ```
 
 **Dataset Options:**
